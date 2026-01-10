@@ -16,23 +16,21 @@ jobs:
           java-version: "17"
           cache: "gradle"
 
-      # 使用 Stable 渠道，它是包含 intl 0.20.2 的
       - name: Flutter action
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Generate Dummy Keystore
-        run: |
-          cd simple_live_app/android
-          keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias key -storepass 123456 -keypass 123456 -dname "CN=Test, OU=Test, O=Test, L=Test, S=Test, C=US"
-          echo "storePassword=123456" > key.properties
-          echo "keyPassword=123456" >> key.properties
-          echo "keyAlias=key" >> key.properties
-          echo "storeFile=keystore.jks" >> key.properties
 
-      # 直接拉取依赖，不要再手动改版本号了
+      - name: Bypass Signing Config
+        run: |
+          cd simple_live_app/android/app
+          # 将 "signingConfig signingConfigs.release" 替换为 "signingConfig signingConfigs.debug"
+          sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' build.gradle
+          # 打印一下确认修改成功（在日志里应该能看到 signingConfigs.debug）
+          grep "signingConfig signingConfigs" build.gradle
+
       - name: Restore packages
         run: |
           cd simple_live_app
@@ -41,6 +39,7 @@ jobs:
       - name: Build APK
         run: |
           cd simple_live_app
+
           flutter build apk --release --split-per-abi
 
       - name: Upload APK to Artifacts
