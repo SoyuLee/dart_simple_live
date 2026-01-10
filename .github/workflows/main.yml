@@ -1,64 +1,61 @@
 name: Build Android Manual
-# 改为手动触发
 on:
   workflow_dispatch:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest # 改用 Ubuntu 构建安卓更快
+    runs-on: ubuntu-latest
     steps:
-      # 1. 签出代码
       - uses: actions/checkout@v4
         with:
           ref: master
 
-      # 2. 设置 Java 环境
       - uses: actions/setup-java@v4
         with:
           distribution: "zulu"
           java-version: "17"
           cache: "gradle"
 
-      # 3. 设置 Flutter 环境
+      # 使用最新的 Stable 渠道，增加兼容性
       - name: Flutter action
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x" # 使用较新的稳定版，或者保持原作者版本
+          channel: 'stable' 
           cache: true
 
-      # 4. 临时生成一个签名文件 (关键步骤：解决没有密钥报错的问题)
       - name: Generate Dummy Keystore
         run: |
           cd simple_live_app/android
-          # 生成临时 keystore.jks
           keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias key -storepass 123456 -keypass 123456 -dname "CN=Test, OU=Test, O=Test, L=Test, S=Test, C=US"
-          # 生成 key.properties 指向这个临时文件
           echo "storePassword=123456" > key.properties
           echo "keyPassword=123456" >> key.properties
           echo "keyAlias=key" >> key.properties
           echo "storeFile=keystore.jks" >> key.properties
-          # 打印一下确认文件存在
-          ls -l
 
-      # 5. 更新依赖
+      # === 修复步骤开始 ===
+      # 强行修改 pubspec.yaml，将 intl 版本降级为 0.19.0 以匹配 Flutter SDK
+      - name: Fix Dependency Conflict
+        run: |
+          cd simple_live_app
+          sed -i 's/intl: ^0.20.2/intl: ^0.19.0/' pubspec.yaml
+          # 预防万一，如果是其他写法的版本号，也尝试替换
+          sed -i 's/intl: ^0.20.0/intl: ^0.19.0/' pubspec.yaml
+          cat pubspec.yaml | grep intl
+      # === 修复步骤结束 ===
+
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 6. 打包 APK (Release版)
       - name: Build APK
         run: |
           cd simple_live_app
-          # 使用 release 构建，签名使用上面生成的临时 key
           flutter build apk --release --split-per-abi
 
-      # 7. 上传产物 (构建完成后在这里下载)
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: |
             simple_live_app/build/app/outputs/flutter-apk/*.apk
-            
-      - run: echo "✅ 构建完成！请在 Summary 页面底部的 Artifacts 区域下载 APK。"
