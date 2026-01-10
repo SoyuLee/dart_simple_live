@@ -16,11 +16,11 @@ jobs:
           java-version: "17"
           cache: "gradle"
 
-      # 使用最新的 Stable 渠道，增加兼容性
+      # 使用 Stable 渠道，它是包含 intl 0.20.2 的
       - name: Flutter action
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable' 
+          channel: 'stable'
           cache: true
 
       - name: Generate Dummy Keystore
@@ -32,17 +32,7 @@ jobs:
           echo "keyAlias=key" >> key.properties
           echo "storeFile=keystore.jks" >> key.properties
 
-      # === 修复步骤开始 ===
-      # 强行修改 pubspec.yaml，将 intl 版本降级为 0.19.0 以匹配 Flutter SDK
-      - name: Fix Dependency Conflict
-        run: |
-          cd simple_live_app
-          sed -i 's/intl: ^0.20.2/intl: ^0.19.0/' pubspec.yaml
-          # 预防万一，如果是其他写法的版本号，也尝试替换
-          sed -i 's/intl: ^0.20.0/intl: ^0.19.0/' pubspec.yaml
-          cat pubspec.yaml | grep intl
-      # === 修复步骤结束 ===
-
+      # 直接拉取依赖，不要再手动改版本号了
       - name: Restore packages
         run: |
           cd simple_live_app
