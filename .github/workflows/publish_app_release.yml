@@ -1,4 +1,4 @@
-name: app-build-action
+name: app-build-action-ture
 #推送Tag时触发
 on:
   push:
