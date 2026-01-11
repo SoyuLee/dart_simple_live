@@ -6,42 +6,56 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
+      # 1. 签出代码
       - uses: actions/checkout@v4
         with:
           ref: master
 
+      # 2. 设置 Java 环境
       - uses: actions/setup-java@v4
         with:
           distribution: "zulu"
           java-version: "17"
           cache: "gradle"
 
+      # 3. 设置 Flutter (使用 stable 渠道)
       - name: Flutter action
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-
-      - name: Bypass Signing Config
+      # 4. 生成签名 (终极修正版：使用系统绝对路径)
+      - name: Setup Keystore
         run: |
-          cd simple_live_app/android/app
-          # 将 "signingConfig signingConfigs.release" 替换为 "signingConfig signingConfigs.debug"
-          sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' build.gradle
-          # 打印一下确认修改成功（在日志里应该能看到 signingConfigs.debug）
-          grep "signingConfig signingConfigs" build.gradle
+          # A. 在系统临时目录生成签名文件 (这个位置绝对存在且可写)
+          keytool -genkey -v -keystore /tmp/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias key -storepass 123456 -keypass 123456 -dname "CN=Test, OU=Test, O=Test, L=Test, S=Test, C=US"
+          
+          # B. 告诉 Android 项目去哪里找这个文件
+          # 我们把配置文件写入到 android 目录下，这是 Gradle 读取的标准位置
+          echo "storePassword=123456" > simple_live_app/android/key.properties
+          echo "keyPassword=123456" >> simple_live_app/android/key.properties
+          echo "keyAlias=key" >> simple_live_app/android/key.properties
+          # 关键点：使用绝对路径 /tmp/keystore.jks
+          echo "storeFile=/tmp/keystore.jks" >> simple_live_app/android/key.properties
+          
+          # C. 打印检查一下
+          echo "Key properties content:"
+          cat simple_live_app/android/key.properties
 
+      # 5. 拉取依赖
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
 
+      # 6. 打包 APK
       - name: Build APK
         run: |
           cd simple_live_app
-
           flutter build apk --release --split-per-abi
 
+      # 7. 上传产物
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
